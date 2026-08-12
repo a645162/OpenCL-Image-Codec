@@ -64,7 +64,7 @@ include/OpenCLImageCodec/  对外 C/C++ API 头（oic.h / oic.hpp）
 src/core/                  OpenCLImageCodec.Core —— 平台抽象 + OpenCL 设备/上下文/kernel 构建
 src/tiff/                  OpenCLImageCodec.Tiff —— TIFF 容器 + LZW 编码(GPU)/解码(CPU)
 src/jpeg/                  OpenCLImageCodec.Jpeg —— baseline JPEG 混合编解码（OpenCL）
-src/jpeg/onevpl/           OpenCLImageCodec.Jpeg.OneVpl —— oneVPL(libvpl.dll) 后端
+src/jpeg/onevpl/           OpenCLImageCodec.Jpeg.oneVPL —— oneVPL(libvpl.dll) 后端
 src/api/                   OpenCLImageCodec.Api —— C API 实现（buffer ↔ 临时文件桥接）
 cli/                       oic 可执行（子命令 info/decode/encode/bench）
 examples/                  纯 C / C++ 示例

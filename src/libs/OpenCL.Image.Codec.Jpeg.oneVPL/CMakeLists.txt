@@ -10,26 +10,26 @@
 #  - d3d11/dxgi 由 Windows SDK 提供，仅 WIN32 需要。
 #  - 非 Windows 平台产出空静态库，保证 src/CMakeLists.txt 的聚合 target 仍可链接。
 if(WIN32)
-  add_library(OpenCLImageCodec.Jpeg.OneVpl STATIC
+  add_library(OpenCLImageCodec.Jpeg.oneVPL STATIC
     src/vpl_dyn.cpp
     src/rgb_nv12.cpp
     src/vpl_jpeg_encoder.cpp
     src/vpl_jpeg_decoder.cpp
     src/onevpl_test.cpp)
-  target_include_directories(OpenCLImageCodec.Jpeg.OneVpl PUBLIC
+  target_include_directories(OpenCLImageCodec.Jpeg.oneVPL PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
     "${CMAKE_SOURCE_DIR}/3rdparty/libvpl/api/vpl")
-  target_link_libraries(OpenCLImageCodec.Jpeg.OneVpl PUBLIC
+  target_link_libraries(OpenCLImageCodec.Jpeg.oneVPL PUBLIC
     OpenCLImageCodec.Jpeg
     d3d11
     dxgi)
   # mfx 头与 windows.h 共存时避免 min/max 宏冲突。
-  target_compile_definitions(OpenCLImageCodec.Jpeg.OneVpl PRIVATE
+  target_compile_definitions(OpenCLImageCodec.Jpeg.oneVPL PRIVATE
     NOMINMAX
     WIN32_LEAN_AND_MEAN)
 else()
-  add_library(OpenCLImageCodec.Jpeg.OneVpl STATIC)
+  add_library(OpenCLImageCodec.Jpeg.oneVPL STATIC)
 endif()
 
-# 命名空间别名：target_link_libraries(app PRIVATE OpenCLImageCodec::Jpeg::OneVpl)
-add_library(OpenCLImageCodec::Jpeg::OneVpl ALIAS OpenCLImageCodec.Jpeg.OneVpl)
+# 命名空间别名：target_link_libraries(app PRIVATE OpenCLImageCodec::Jpeg::oneVPL)
+add_library(OpenCLImageCodec::Jpeg::oneVPL ALIAS OpenCLImageCodec.Jpeg.oneVPL)
