@@ -1,0 +1,8 @@
+// Auto-generated from lzw_encode.cl —— 请勿手改（由 CMake configure_file 生成）。
+namespace oic {
+namespace tiff {
+const char* lzw_encode_cl_source = R"OICCL(
+@LZW_ENCODE_CL_STRING@
+)OICCL";
+}  // namespace tiff
+}  // namespace oic
