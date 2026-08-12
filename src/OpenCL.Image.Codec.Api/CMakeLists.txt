@@ -1,12 +1,12 @@
 # 对外 C API（include/OpenCLImageCodec/oic.h / oic.hpp 的实现库）。
 # 桥接各模块文件入口（oic_*_test.h）与内存 buffer。
 add_library(OpenCLImageCodec.Api STATIC
-  oic.cpp
-  ../../include/OpenCLImageCodec/oic.h
-  ../../include/OpenCLImageCodec/oic.hpp)
+  src/oic.cpp
+  "${CMAKE_SOURCE_DIR}/include/OpenCLImageCodec/oic.h"
+  "${CMAKE_SOURCE_DIR}/include/OpenCLImageCodec/oic.hpp")
 
 target_include_directories(OpenCLImageCodec.Api PUBLIC
-  "${CMAKE_CURRENT_SOURCE_DIR}/../../include")
+  "${CMAKE_SOURCE_DIR}/include")
 
 target_link_libraries(OpenCLImageCodec.Api PUBLIC
   OpenCLImageCodec.Core

@@ -7,11 +7,11 @@
 // 临时文件放在系统临时目录（Windows GetTempPathA/GetTempFileNameA）。
 #include "OpenCLImageCodec/oic.h"
 
-#include "../core/ocl_device.h"
-#include "../jpeg/bmp_io.h"
-#include "../jpeg/jpeg_test.h"
-#include "../jpeg/onevpl/onevpl_test.h"
-#include "../tiff/tiff_test.h"
+#include "../../OpenCL.Image.Codec.Core/src/ocl_device.h"
+#include "../../OpenCL.Image.Codec.Jpeg/src/bmp_io.h"
+#include "../../OpenCL.Image.Codec.Jpeg/src/jpeg_test.h"
+#include "../../OpenCL.Image.Codec.OneVpl/src/onevpl_test.h"
+#include "../../OpenCL.Image.Codec.Tiff/src/tiff_test.h"
 
 #include <cstdio>
 #include <cstdlib>
