@@ -1,5 +1,5 @@
 # JPEG 模块：OpenCL 混合编解码（Huffman 熵编解码 CPU + DCT/颜色变换 GPU）。
-# 硬件后端见平级模块 OpenCL.Image.Codec.OneVpl（oneVPL/libvpl.dll）。
+# 硬件后端见平级模块 OpenCL.Image.Codec.Jpeg.oneVPL（oneVPL/libvpl.dll）。
 
 # ---- 内嵌 OpenCL kernel 源码：file(READ) + configure_file 生成 C 字符串 ----
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/src/kernels/jpeg_dec.cl" JPEG_DEC_SOURCE)

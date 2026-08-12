@@ -10,7 +10,7 @@
 #include "../../OpenCL.Image.Codec.Core/src/ocl_device.h"
 #include "../../OpenCL.Image.Codec.Jpeg/src/bmp_io.h"
 #include "../../OpenCL.Image.Codec.Jpeg/src/jpeg_test.h"
-#include "../../OpenCL.Image.Codec.OneVpl/src/onevpl_test.h"
+#include "../../OpenCL.Image.Codec.Jpeg.oneVPL/src/onevpl_test.h"
 #include "../../OpenCL.Image.Codec.Tiff/src/tiff_test.h"
 
 #include <cstdio>
