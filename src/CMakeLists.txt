@@ -2,6 +2,7 @@
 add_subdirectory(core)
 add_subdirectory(tiff)
 add_subdirectory(jpeg)
+add_subdirectory(api)
 
 add_library(OpenCLImageCodec INTERFACE)
 target_include_directories(OpenCLImageCodec INTERFACE
@@ -10,5 +11,6 @@ target_link_libraries(OpenCLImageCodec INTERFACE
   OpenCLImageCodec.Core
   OpenCLImageCodec.Tiff
   OpenCLImageCodec.Jpeg
-  OpenCLImageCodec.Jpeg.OneVpl)
+  OpenCLImageCodec.Jpeg.OneVpl
+  OpenCLImageCodec.Api)
 add_library(OpenCLImageCodec::OpenCLImageCodec ALIAS OpenCLImageCodec)

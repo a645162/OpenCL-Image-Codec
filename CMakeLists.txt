@@ -31,7 +31,7 @@ endif()
 
 option(OIC_BUILD_CLI "Build test CLI" ON)
 option(OIC_BUILD_TESTS "Build ctest suite" OFF)
-option(OIC_BUILD_EXAMPLES "Build examples" OFF)
+option(OIC_BUILD_EXAMPLES "Build examples" ON)
 
 # OpenCL 由 vcpkg opencl 端口提供（OpenCL::OpenCL）。
 find_package(OpenCL REQUIRED)
