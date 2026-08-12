@@ -1,7 +1,32 @@
-# 阶段3 占位；oneVPL(libvpl.dll 动态加载) JPEG 后端，仅 WIN32 编译。
-add_library(OpenCLImageCodec.Jpeg.OneVpl STATIC
-  onevpl_stub.cpp)
-target_include_directories(OpenCLImageCodec.Jpeg.OneVpl PUBLIC
-  "${CMAKE_CURRENT_SOURCE_DIR}")
-target_link_libraries(OpenCLImageCodec.Jpeg.OneVpl PUBLIC
-  OpenCLImageCodec.Jpeg)
+# oneVPL (libvpl.dll 动态加载) JPEG 后端：仅 WIN32 编译。
+#
+# 可移植性说明：
+#  - oneVPL API 头经 git submodule 引入（3rdparty/libvpl，
+#    https://github.com/intel/libvpl），头文件位于其 api/vpl/，未做任何复制。
+#    另挂 3rdparty/vpl-gpu-rt（https://github.com/intel/vpl-gpu-rt）
+#    submodule 供参考运行时实现。Windows 上无需导入库，
+#    MFX 入口经 vpl_dyn 动态绑定。
+#  - 首次克隆需 `git submodule update --init --recursive`。
+#  - d3d11/dxgi 由 Windows SDK 提供，仅 WIN32 需要。
+#  - 非 Windows 平台产出空静态库，保证 src/CMakeLists.txt 的聚合 target 仍可链接。
+if(WIN32)
+  add_library(OpenCLImageCodec.Jpeg.OneVpl STATIC
+    vpl_dyn.cpp
+    rgb_nv12.cpp
+    vpl_jpeg_encoder.cpp
+    vpl_jpeg_decoder.cpp
+    onevpl_test.cpp)
+  target_include_directories(OpenCLImageCodec.Jpeg.OneVpl PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/libvpl/api/vpl")
+  target_link_libraries(OpenCLImageCodec.Jpeg.OneVpl PUBLIC
+    OpenCLImageCodec.Jpeg
+    d3d11
+    dxgi)
+  # mfx 头与 windows.h 共存时避免 min/max 宏冲突。
+  target_compile_definitions(OpenCLImageCodec.Jpeg.OneVpl PRIVATE
+    NOMINMAX
+    WIN32_LEAN_AND_MEAN)
+else()
+  add_library(OpenCLImageCodec.Jpeg.OneVpl STATIC)
+endif()
