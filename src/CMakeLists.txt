@@ -11,5 +11,6 @@ target_link_libraries(OpenCLImageCodec INTERFACE
   OpenCLImageCodec.Platform
   OpenCLImageCodec.OpenCL
   OpenCLImageCodec.Tiff
-  OpenCLImageCodec.Jpeg)
+  OpenCLImageCodec.Jpeg
+  OpenCLImageCodec.Jpeg.OneVpl)
 add_library(OpenCLImageCodec::OpenCLImageCodec ALIAS OpenCLImageCodec)
