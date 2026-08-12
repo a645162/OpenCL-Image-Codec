@@ -9,3 +9,6 @@ add_library(OpenCLImageCodec.Core STATIC
 target_include_directories(OpenCLImageCodec.Core PUBLIC
   "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(OpenCLImageCodec.Core PUBLIC OpenCL::OpenCL)
+
+# 命名空间别名：target_link_libraries(app PRIVATE OpenCLImageCodec::Core)
+add_library(OpenCLImageCodec::Core ALIAS OpenCLImageCodec.Core)

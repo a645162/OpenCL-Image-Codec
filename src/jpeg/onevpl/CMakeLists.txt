@@ -30,3 +30,6 @@ if(WIN32)
 else()
   add_library(OpenCLImageCodec.Jpeg.OneVpl STATIC)
 endif()
+
+# 命名空间别名：target_link_libraries(app PRIVATE OpenCLImageCodec::Jpeg::OneVpl)
+add_library(OpenCLImageCodec::Jpeg::OneVpl ALIAS OpenCLImageCodec.Jpeg.OneVpl)

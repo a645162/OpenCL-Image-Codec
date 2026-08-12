@@ -44,3 +44,6 @@ target_include_directories(OpenCLImageCodec.Tiff PRIVATE
 target_link_libraries(OpenCLImageCodec.Tiff PUBLIC
   OpenCLImageCodec.Core
   OpenCLImageCodec.Core)
+
+# 命名空间别名：target_link_libraries(app PRIVATE OpenCLImageCodec::Tiff)
+add_library(OpenCLImageCodec::Tiff ALIAS OpenCLImageCodec.Tiff)

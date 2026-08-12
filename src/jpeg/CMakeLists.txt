@@ -33,6 +33,9 @@ target_link_libraries(OpenCLImageCodec.Jpeg PUBLIC
   OpenCLImageCodec.Core
   OpenCLImageCodec.Core)
 
+# 命名空间别名：target_link_libraries(app PRIVATE OpenCLImageCodec::Jpeg)
+add_library(OpenCLImageCodec::Jpeg ALIAS OpenCLImageCodec.Jpeg)
+
 # 可选自测可执行（默认关闭；供本模块独立验证）。
 option(OIC_BUILD_JPEG_SELFTEST "Build JPEG self-test executable" OFF)
 if(OIC_BUILD_JPEG_SELFTEST)

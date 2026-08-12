@@ -16,3 +16,6 @@ target_link_libraries(OpenCLImageCodec.Api PUBLIC
 
 # 构建本库时 OIC_API 取 dllexport 分支（共享库场景）；静态库下为空。
 target_compile_definitions(OpenCLImageCodec.Api PRIVATE OIC_BUILDING_LIB)
+
+# 命名空间别名：target_link_libraries(app PRIVATE OpenCLImageCodec::Api)
+add_library(OpenCLImageCodec::Api ALIAS OpenCLImageCodec.Api)

@@ -1,16 +1,22 @@
-# 子项目组织：每个模块独立静态库，最后 INTERFACE 聚合为对外 target。
-add_subdirectory(core)
-add_subdirectory(tiff)
-add_subdirectory(jpeg)
-add_subdirectory(api)
+# src/ 下为多个独立静态库项目（参照主项目 src/libs 组织），用户可按需链接。
+# 每个库提供命名空间别名，例如：
+#   target_link_libraries(app PRIVATE OpenCLImageCodec::Tiff)   # 仅 TIFF（PUBLIC 传播 Core）
+#   target_link_libraries(app PRIVATE OpenCLImageCodec::Jpeg)   # 仅 JPEG（含 Core）
+# 依赖（PUBLIC 传播）：Tiff→Core；Jpeg→Core；Jpeg::OneVpl→Jpeg→Core；Api→Core+Tiff+Jpeg+OneVpl
+add_subdirectory(core)   # OpenCLImageCodec::Core       平台抽象 + OpenCL 设备/上下文/kernel
+add_subdirectory(tiff)   # OpenCLImageCodec::Tiff       TIFF 容器 + LZW 编码(GPU)/解码(CPU)
+add_subdirectory(jpeg)   # OpenCLImageCodec::Jpeg       baseline JPEG 混合编解码（OpenCL）
+                         #   └─ onevpl → OpenCLImageCodec::Jpeg::OneVpl（oneVPL 后端）
+add_subdirectory(api)    # OpenCLImageCodec::Api        C API（oic.h）实现
 
+# 全量聚合便捷入口（可选）：一次链接全部库。不需要全部时可省略。
 add_library(OpenCLImageCodec INTERFACE)
 target_include_directories(OpenCLImageCodec INTERFACE
   "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>")
 target_link_libraries(OpenCLImageCodec INTERFACE
-  OpenCLImageCodec.Core
-  OpenCLImageCodec.Tiff
-  OpenCLImageCodec.Jpeg
-  OpenCLImageCodec.Jpeg.OneVpl
-  OpenCLImageCodec.Api)
+  OpenCLImageCodec::Core
+  OpenCLImageCodec::Tiff
+  OpenCLImageCodec::Jpeg
+  OpenCLImageCodec::Jpeg::OneVpl
+  OpenCLImageCodec::Api)
 add_library(OpenCLImageCodec::OpenCLImageCodec ALIAS OpenCLImageCodec)
