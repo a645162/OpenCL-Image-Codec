@@ -17,6 +17,12 @@ configure_file(
   "${CMAKE_CURRENT_SOURCE_DIR}/src/lzw_decode_cl.cpp.in"
   "${CMAKE_CURRENT_BINARY_DIR}/lzw_decode_cl.cpp"
   @ONLY)
+# LZW 解码 GPU 段内并行探索 kernel（见 lzw_decode_ocl.h 探索结论）。
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/src/kernels/lzw_decode_par.cl" LZW_DECODE_PAR_CL_STRING)
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/lzw_decode_par_cl.cpp.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/lzw_decode_par_cl.cpp"
+  @ONLY)
 
 add_library(OpenCLImageCodec.Tiff STATIC
   src/tiff_container.h
@@ -35,7 +41,8 @@ add_library(OpenCLImageCodec.Tiff STATIC
   src/tiff_test.cpp
   "${CMAKE_CURRENT_BINARY_DIR}/lzw_encode_cl.cpp"
   "${CMAKE_CURRENT_BINARY_DIR}/lzw_encode_tile_cl.cpp"
-  "${CMAKE_CURRENT_BINARY_DIR}/lzw_decode_cl.cpp")
+  "${CMAKE_CURRENT_BINARY_DIR}/lzw_decode_cl.cpp"
+  "${CMAKE_CURRENT_BINARY_DIR}/lzw_decode_par_cl.cpp")
 
 target_include_directories(OpenCLImageCodec.Tiff PUBLIC
   "${CMAKE_CURRENT_SOURCE_DIR}/src")

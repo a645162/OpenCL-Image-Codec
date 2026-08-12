@@ -17,6 +17,7 @@
 namespace oic {
 namespace tiff {
 extern const char* lzw_decode_cl_source;
+extern const char* lzw_decode_par_cl_source;
 }  // namespace tiff
 }  // namespace oic
 
@@ -35,6 +36,7 @@ constexpr uint32_t kMaxInBytes = 1u << 28;  // 单流上限（bit 偏移用 uint
 struct Segment {
   uint32_t start_bit;
   uint32_t end_bit;
+  uint32_t n_codes;  // 段内码字数（不含 ClearCode/EOI 终止码）
 };
 
 // 段内第 j 个码的码宽（位置公式，等价于解码器 next_code==511/1023/2047 切换）。
@@ -83,11 +85,11 @@ int scanSegments(const uint8_t* in, size_t in_size, std::vector<Segment>& segs) 
     j++;
 
     if (code == kEoi) {
-      segs.push_back({seg_start, bitpos - w});
+      segs.push_back({seg_start, bitpos - w, j - 1});
       return 0;
     }
     if (code == kClear) {
-      segs.push_back({seg_start, bitpos - w});  // 本段结束于该 Clear 的 bit 起点
+      segs.push_back({seg_start, bitpos - w, j - 1});  // 本段结束于该 Clear 的 bit 起点
       seg_start = bitpos;                       // 下一段从 Clear 之后开始
       next_code = kFirst;
       j = 0;
@@ -141,6 +143,34 @@ void releaseBuffers(KernArgs& a) {
   if (a.seg_len) clReleaseMemObject(a.seg_len);
   if (a.seg_status) clReleaseMemObject(a.seg_status);
   a = KernArgs{};
+}
+
+// 段内并行解码（gpuLzwDecodePar）的 kernel 入参集合。
+struct ParArgs {
+  cl_mem in = nullptr;
+  cl_mem seg_start = nullptr;
+  cl_mem seg_ncodes = nullptr;
+  cl_mem codes = nullptr;
+  cl_mem suffix = nullptr;
+  cl_mem lengths = nullptr;
+  cl_mem offsets = nullptr;
+  cl_mem out_base = nullptr;
+  cl_mem status = nullptr;
+  cl_mem out = nullptr;
+};
+
+void releaseParBuffers(ParArgs& a) {
+  if (a.in) clReleaseMemObject(a.in);
+  if (a.seg_start) clReleaseMemObject(a.seg_start);
+  if (a.seg_ncodes) clReleaseMemObject(a.seg_ncodes);
+  if (a.codes) clReleaseMemObject(a.codes);
+  if (a.suffix) clReleaseMemObject(a.suffix);
+  if (a.lengths) clReleaseMemObject(a.lengths);
+  if (a.offsets) clReleaseMemObject(a.offsets);
+  if (a.out_base) clReleaseMemObject(a.out_base);
+  if (a.status) clReleaseMemObject(a.status);
+  if (a.out) clReleaseMemObject(a.out);
+  a = ParArgs{};
 }
 
 }  // namespace
@@ -329,6 +359,218 @@ int gpuLzwDecode(const uint8_t* in, size_t in_size, std::vector<uint8_t>& out) {
 cleanup:
   releaseBuffers(a);
   OclProgram::release(kernel);
+  OclProgram::release(program);
+  if (rc != 0) out.clear();
+  return rc;
+}
+
+int gpuLzwDecodePar(const uint8_t* in, size_t in_size, std::vector<uint8_t>& out) {
+  out.clear();
+
+  // ---- 段扫描（host，串行）：找段边界 + 校验码流（复用段级并行版的扫描） ----
+  std::vector<Segment> segs;
+  int rc = scanSegments(in, in_size, segs);
+  if (rc != 0) return rc;
+
+  // 过滤空段（连续 ClearCode / 流首 ClearCode 会产生空段）。
+  std::vector<Segment> real;
+  real.reserve(segs.size());
+  for (const Segment& s : segs) {
+    if (s.start_bit < s.end_bit) real.push_back(s);
+  }
+  const size_t n_seg = real.size();
+  if (n_seg == 0) return 0;  // 无有效数据（如 ClearCode+EOI 空流）
+
+  uint32_t max_ncodes = 1;
+  for (const Segment& s : real) max_ncodes = std::max(max_ncodes, s.n_codes);
+
+  // ---- 设备/程序初始化 ----
+  OclDevice dev;
+  cl_int err = dev.init(0);
+  if (err != CL_SUCCESS) return -10;
+  cl_context ctx = dev.context();
+  cl_command_queue queue = dev.queue();
+  cl_device_id device_id = dev.device();
+
+  std::string log;
+  cl_program program = nullptr;
+  err = OclProgram::build(ctx, device_id, lzw_decode_par_cl_source,
+                          "-cl-std=CL1.2", &program, &log);
+  if (err != CL_SUCCESS) return -11;
+  cl_kernel k_extract = nullptr, k_build = nullptr, k_write = nullptr;
+  err = OclProgram::createKernel(program, "lzw_par_extract", &k_extract);
+  if (err != CL_SUCCESS) {
+    OclProgram::release(program);
+    return -12;
+  }
+  err = OclProgram::createKernel(program, "lzw_par_build", &k_build);
+  if (err != CL_SUCCESS) {
+    OclProgram::release(k_extract);
+    OclProgram::release(program);
+    return -12;
+  }
+  err = OclProgram::createKernel(program, "lzw_par_write", &k_write);
+  if (err != CL_SUCCESS) {
+    OclProgram::release(k_build);
+    OclProgram::release(k_extract);
+    OclProgram::release(program);
+    return -12;
+  }
+
+  // ---- 缓冲 ----
+  std::vector<uint8_t> padded(in_size + 3, 0);
+  if (in_size > 0) std::memcpy(padded.data(), in, in_size);
+
+  std::vector<uint32_t> starts(n_seg), ncodes(n_seg);
+  for (size_t i = 0; i < n_seg; ++i) {
+    starts[i] = real[i].start_bit;
+    ncodes[i] = real[i].n_codes;
+  }
+
+  // 提前声明（MSVC C2362 禁止 goto 跳过带初始化的变量声明）。
+  std::vector<cl_uint> lens;
+  std::vector<cl_int> status;
+  std::vector<cl_uint> offsets, bases;
+
+  ParArgs a;
+  a.in = clCreateBuffer(ctx, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                        padded.size(), padded.data(), &err);
+  if (err != CL_SUCCESS) { rc = -13; goto cleanup; }
+  a.seg_start = clCreateBuffer(ctx, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                               n_seg * sizeof(uint32_t), starts.data(), &err);
+  if (err != CL_SUCCESS) { rc = -13; goto cleanup; }
+  a.seg_ncodes = clCreateBuffer(ctx, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                                n_seg * sizeof(uint32_t), ncodes.data(), &err);
+  if (err != CL_SUCCESS) { rc = -13; goto cleanup; }
+  a.codes = clCreateBuffer(ctx, CL_MEM_READ_WRITE, n_seg * 4096 * sizeof(cl_uint),
+                           nullptr, &err);
+  if (err != CL_SUCCESS) { rc = -13; goto cleanup; }
+  a.suffix = clCreateBuffer(ctx, CL_MEM_READ_WRITE, n_seg * 4096, nullptr, &err);
+  if (err != CL_SUCCESS) { rc = -13; goto cleanup; }
+  a.lengths = clCreateBuffer(ctx, CL_MEM_READ_WRITE,
+                             n_seg * 4096 * sizeof(cl_uint), nullptr, &err);
+  if (err != CL_SUCCESS) { rc = -13; goto cleanup; }
+  a.offsets = clCreateBuffer(ctx, CL_MEM_WRITE_ONLY,
+                             n_seg * 4096 * sizeof(cl_uint), nullptr, &err);
+  if (err != CL_SUCCESS) { rc = -13; goto cleanup; }
+  a.out_base = clCreateBuffer(ctx, CL_MEM_WRITE_ONLY, n_seg * sizeof(cl_uint),
+                              nullptr, &err);
+  if (err != CL_SUCCESS) { rc = -13; goto cleanup; }
+  a.status = clCreateBuffer(ctx, CL_MEM_READ_WRITE, n_seg * sizeof(cl_int),
+                            nullptr, &err);
+  if (err != CL_SUCCESS) { rc = -13; goto cleanup; }
+
+  const cl_uint c_nseg = static_cast<cl_uint>(n_seg);
+  const size_t gws[2] = {max_ncodes, n_seg};
+
+  // ---- kernel 1：并行读码 + 校验 ----
+  {
+    clSetKernelArg(k_extract, 0, sizeof(cl_mem), &a.in);
+    clSetKernelArg(k_extract, 1, sizeof(cl_mem), &a.seg_start);
+    clSetKernelArg(k_extract, 2, sizeof(cl_mem), &a.seg_ncodes);
+    clSetKernelArg(k_extract, 3, sizeof(cl_mem), &a.codes);
+    clSetKernelArg(k_extract, 4, sizeof(cl_mem), &a.status);
+    clSetKernelArg(k_extract, 5, sizeof(cl_uint), &c_nseg);
+    err = clEnqueueNDRangeKernel(queue, k_extract, 2, nullptr, gws, nullptr, 0,
+                                 nullptr, nullptr);
+    if (err != CL_SUCCESS) { rc = -14; goto cleanup; }
+    if (clFinish(queue) != CL_SUCCESS) { rc = -14; goto cleanup; }
+  }
+
+  // ---- 读回状态；有错误则中止 ----
+  status.resize(n_seg);
+  if (clEnqueueReadBuffer(queue, a.status, CL_TRUE, 0, n_seg * sizeof(cl_int),
+                          status.data(), 0, nullptr, nullptr) != CL_SUCCESS) {
+    rc = -15;
+    goto cleanup;
+  }
+  for (size_t i = 0; i < n_seg; ++i) {
+    if (status[i] != 0) {
+      rc = status[i];  // 与 CPU 参考错误码一致的负值
+      goto cleanup;
+    }
+  }
+
+  // ---- kernel 2：并行建字典（suffix）+ 求输出长度 ----
+  {
+    clSetKernelArg(k_build, 0, sizeof(cl_mem), &a.codes);
+    clSetKernelArg(k_build, 1, sizeof(cl_mem), &a.suffix);
+    clSetKernelArg(k_build, 2, sizeof(cl_mem), &a.lengths);
+    clSetKernelArg(k_build, 3, sizeof(cl_mem), &a.seg_ncodes);
+    clSetKernelArg(k_build, 4, sizeof(cl_uint), &c_nseg);
+    err = clEnqueueNDRangeKernel(queue, k_build, 2, nullptr, gws, nullptr, 0,
+                                 nullptr, nullptr);
+    if (err != CL_SUCCESS) { rc = -14; goto cleanup; }
+    if (clFinish(queue) != CL_SUCCESS) { rc = -14; goto cleanup; }
+  }
+
+  // ---- 读回长度，host 求每码字段内偏移与段全局偏移 ----
+  lens.resize(n_seg * 4096);
+  if (clEnqueueReadBuffer(queue, a.lengths, CL_TRUE, 0,
+                          lens.size() * sizeof(cl_uint), lens.data(), 0,
+                          nullptr, nullptr) != CL_SUCCESS) {
+    rc = -15;
+    goto cleanup;
+  }
+  offsets.assign(n_seg * 4096, 0u);
+  bases.resize(n_seg);
+  uint64_t total = 0;
+  for (size_t s = 0; s < n_seg; ++s) {
+    bases[s] = static_cast<cl_uint>(total);
+    uint64_t acc = 0;
+    for (uint32_t k = 0; k < real[s].n_codes; ++k) {
+      offsets[s * 4096 + k] = static_cast<cl_uint>(acc);
+      acc += lens[s * 4096 + k];
+    }
+    total += acc;
+  }
+  if (total == 0) { rc = 0; goto cleanup; }
+
+  // ---- 写回偏移/段基址，kernel 3：并行展开输出 ----
+  {
+    if (clEnqueueWriteBuffer(queue, a.offsets, CL_TRUE, 0,
+                             offsets.size() * sizeof(cl_uint), offsets.data(),
+                             0, nullptr, nullptr) != CL_SUCCESS) {
+      rc = -15;
+      goto cleanup;
+    }
+    if (clEnqueueWriteBuffer(queue, a.out_base, CL_TRUE, 0,
+                             bases.size() * sizeof(cl_uint), bases.data(), 0,
+                             nullptr, nullptr) != CL_SUCCESS) {
+      rc = -15;
+      goto cleanup;
+    }
+    a.out = clCreateBuffer(ctx, CL_MEM_WRITE_ONLY, static_cast<size_t>(total),
+                           nullptr, &err);
+    if (err != CL_SUCCESS) { rc = -13; goto cleanup; }
+    clSetKernelArg(k_write, 0, sizeof(cl_mem), &a.codes);
+    clSetKernelArg(k_write, 1, sizeof(cl_mem), &a.suffix);
+    clSetKernelArg(k_write, 2, sizeof(cl_mem), &a.lengths);
+    clSetKernelArg(k_write, 3, sizeof(cl_mem), &a.offsets);
+    clSetKernelArg(k_write, 4, sizeof(cl_mem), &a.out_base);
+    clSetKernelArg(k_write, 5, sizeof(cl_mem), &a.out);
+    clSetKernelArg(k_write, 6, sizeof(cl_mem), &a.seg_ncodes);
+    clSetKernelArg(k_write, 7, sizeof(cl_uint), &c_nseg);
+    err = clEnqueueNDRangeKernel(queue, k_write, 2, nullptr, gws, nullptr, 0,
+                                 nullptr, nullptr);
+    if (err != CL_SUCCESS) { rc = -14; goto cleanup; }
+    if (clFinish(queue) != CL_SUCCESS) { rc = -14; goto cleanup; }
+  }
+
+  // ---- 读回输出 ----
+  out.resize(static_cast<size_t>(total));
+  if (clEnqueueReadBuffer(queue, a.out, CL_TRUE, 0, out.size(), out.data(), 0,
+                          nullptr, nullptr) != CL_SUCCESS) {
+    rc = -15;
+    goto cleanup;
+  }
+  rc = 0;
+
+cleanup:
+  releaseParBuffers(a);
+  OclProgram::release(k_write);
+  OclProgram::release(k_build);
+  OclProgram::release(k_extract);
   OclProgram::release(program);
   if (rc != 0) out.clear();
   return rc;
