@@ -38,7 +38,7 @@ find_package(OpenCL REQUIRED)
 
 add_subdirectory(src)
 if(OIC_BUILD_CLI)
-  add_subdirectory(cli)
+  add_subdirectory(src/cli)
 endif()
 if(OIC_BUILD_EXAMPLES)
   add_subdirectory(examples)
