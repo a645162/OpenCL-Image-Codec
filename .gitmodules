@@ -1,6 +1,6 @@
-[submodule "src/jpeg/onevpl/3rdparty/libvpl"]
-	path = src/OpenCL.Image.Codec.OneVpl/src/3rdparty/libvpl
+[submodule "3rdparty/libvpl"]
+	path = 3rdparty/libvpl
 	url = https://github.com/intel/libvpl
-[submodule "src/jpeg/onevpl/3rdparty/vpl-gpu-rt"]
-	path = src/OpenCL.Image.Codec.OneVpl/src/3rdparty/vpl-gpu-rt
+[submodule "3rdparty/vpl-gpu-rt"]
+	path = 3rdparty/vpl-gpu-rt
 	url = https://github.com/intel/vpl-gpu-rt
