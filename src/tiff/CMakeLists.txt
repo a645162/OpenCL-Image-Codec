@@ -33,5 +33,5 @@ target_include_directories(OpenCLImageCodec.Tiff PUBLIC
 target_include_directories(OpenCLImageCodec.Tiff PRIVATE
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_link_libraries(OpenCLImageCodec.Tiff PUBLIC
-  OpenCLImageCodec.OpenCL
-  OpenCLImageCodec.Platform)
+  OpenCLImageCodec.Core
+  OpenCLImageCodec.Core)

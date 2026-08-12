@@ -30,8 +30,8 @@ add_library(OpenCLImageCodec.Jpeg STATIC
 target_include_directories(OpenCLImageCodec.Jpeg PUBLIC
   "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(OpenCLImageCodec.Jpeg PUBLIC
-  OpenCLImageCodec.OpenCL
-  OpenCLImageCodec.Platform)
+  OpenCLImageCodec.Core
+  OpenCLImageCodec.Core)
 
 # 可选自测可执行（默认关闭；供本模块独立验证）。
 option(OIC_BUILD_JPEG_SELFTEST "Build JPEG self-test executable" OFF)
